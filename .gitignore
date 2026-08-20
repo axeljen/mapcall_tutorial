@@ -1,0 +1,7 @@
+map_and_call
+output_tutorial
+logs
+.nextflow*
+.envs
+
+data
