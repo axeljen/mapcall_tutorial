@@ -10,7 +10,7 @@ First off, clone this repo and download the data:
 
 ```bash
     # navigate to a folder in which you want to download the tutorial
-    cd /path/to/folder
+    cd /path/to/folder # change this path to someplace where you want to store and run the tutorial, for example a dedicated directory in your project folder.
     
     # clone the tutorial repository, and enter it
     git clone /address/to/repo
@@ -20,6 +20,28 @@ First off, clone this repo and download the data:
 When that's done, you should have the tutorial repository cloned and the data downloaded, and we're ready to start.
 
 ## Download the data
+
+The data we'll use in this tutorial is a small simulated set of a reference genome and WGS, illumina-like paired-end reads for 50 individuals from 5 populations (PopA-PopE). The data is hosted publicly available on osf, and can be downloaded with the following command:
+
+```bash
+
+    # download the archived data folder
+    curl -L https://osf.io/download/5c26p/ -o data.tar
+
+    # and extract the data
+    tar -xf data.tar
+
+    # now we can remove the archive to save space and keep the folder clean
+    rm data.tar
+
+    # inspect the structure of the data dir, we can use tree, a tool to visualize the directory structure, for this purpose
+    ml tree # tree isn't in path by default on dardel,  so we need to load it as a module
+
+    tree data
+
+```
+
+A bit messy, but we can see that the data folder contains the subfolders reads and reference, where the reads folder contains the paired-end sequencing data files (two files per sample), and the reference folder contains the reference genome (reference_genome.fa.gz). This is all the data we need to run the pipeline.
 
 ## Run map_and_call
 
@@ -75,6 +97,8 @@ Let's copy it into our current directory, and give it a name that indicates that
 Since we've downloaded all the data into the data/ directory, we could manually parse through each read pair and add the relevant information to the sample sheet by hand. This is likely to be necessary in some cases, but to avoid typoes, sample mixups etc., it's always good to automate wherever possible! So for the sake of learning, we'll generate the sample sheet lines with some bash scripting:
 
 ``` bash
+    # check filenames of the reads:
+    find data/reads
     # an example of a read pair name is:
     ## ind1_popA_R1.fq.gz, ind1_popA_R2.fq.gz
     # the info that we need from each read pair:
@@ -146,8 +170,8 @@ As you'll see, there are a bunch of things we need to change in there. If you're
 
     # an optional argument to the pipeline is the scaffold_list, which is a simple text file just listing the scaffolds or chromosomes in the reference genome that we want to perform variant calling on.
     # since this is a small simulated genome, we will include all scaffolds, and in principle we could then just omit this option. But we can also prepare a list of all chromosomes in the reference genome, and just pass this one:
-    zcat data/reference/reference_genome.fa.gz | grep ">" | sed 's/>//g' > data/reference/scaffold_list.
-    txt
+    zcat data/reference/reference_genome.fa.gz | grep ">" | sed 's/>//g' > data/reference/scaffold_list.txt
+    
     # now:
     cat data/reference/scaffold_list.txt
     # should give you a list of all chromosomes in the simulated genome, chr1-chr10
@@ -158,6 +182,89 @@ As you'll see, there are a bunch of things we need to change in there. If you're
     sed -i "s/\/path\/to\/output_directory/output_tutorial/g" run_on_dardel_tutorial.sh
 
     # now one final thing. Since we'll be executing the pipeline from this directory, not from the actual map_and_call folder, we need to adjust the path to the main.nf script in the slurm script, so the computer knows where to find the main script:
-    sed -i "s/main.nf/\map_and_call\/main.nf/g" run_on_dardel_tutorial.sh
+    sed -i "s/main.nf/map_and_call\/main.nf/g" run_on_dardel_tutorial.sh
 
+    # double check that all our changes came through:
+    cat run_on_dardel_tutorial.sh
+
+    export CONDA_PKG_DIR=/cfs/klemming/projects/supr/naiss2025-23-567/dev/mapcall_tutorial/map_and_call/.envs/pkgs
+
+    # if all looks correct, we're ready to ship the job to slurm!
     sbatch run_on_dardel_tutorial.sh
+
+```
+Slurm jobs will log progress in two files, one for stdout and one for stderr. We've specified the location of these files in the slurm headers of our script:
+    
+    #SBATCH -o ./logs/%x-%j.out
+    #SBATCH -e ./logs/%x-%j.error
+
+The .out is stdout and .error is stderr. The %x and %j are placeholders that automatically will expand to the job name and job id, respectively. So for example, if the job name is map-and-call, as it will be in this case unless you've changed the slurm header for the job name (\#SBATCH -J map-and-call), the stdout file will be called map-and-call-<job_id>.out, and the stderr file will be called map-and-call-<job_id>.error. The jobid is automatically assigned by slurm upon submission, and will be unique for each job. Note that we place these files in a separate, child directory, logs/. This is just for the purpose of keeping the directory a bit cleaner, and the logs directory will be automatically created by slurm if it doesn't already exist.
+
+To quickly monitor the progress of the pipeline, we can check running/queued slurm jobs with:
+
+    ```bash
+    squeue -u $USER
+    ```
+    
+    Don't be scared if this shows tons of jobs, the pipeline spawns a lot of independent jobs, like processing of each individual read pair and whatnot, so that's normal. For more detailed information about the progress, we can have a look in the stdout file:
+
+    ```bash
+    # find the most recent stdout file in the logs directory:
+    ls -1tr logs/*.out | tail -n 1 # the following flags were added to ls here: -1 = list one file per line, -t = sort by modification time, -r = reverse order (so the most recent file is last). Typing this as ls -1 -t -r is equivalent to ls -1tr
+
+    # Nextflow stdout becomes a bit messy when written to a file like this, but a neat thing we can do is to monitor the last part of the file in real time, with less:
+    less +F $(ls -1tr logs/*.out | tail -n 1)
+    
+    ```
+
+A snapshot of this less output can look like this:
+    
+    executor >  slurm (152)
+    [34/520f07] IND…x (reference_genome.fa.gz) | 1 of 1 ✔
+    [af/5c1df4] IND…x (reference_genome.fa.gz) | 1 of 1 ✔
+    [34/3c1c2c] IND…CE:dochunks (refintervals) | 1 of 1 ✔
+    [0b/42e364] PRE…RN:fastqc_rawreads (ind37) | 50 of 50 ✔
+    [88/c65381] PRE…SS_MODERN:multiqc_rawreads | 1 of 1 ✔
+    [e3/785caf] PRE…OCESS_MODERN:fastp (ind35) | 50 of 50 ✔
+    [-        ] PREPROCESS_MODERN:concat_reads -
+    [64/08cacb] PRE…RN:clumpify_paired (ind29) | 50 of 50 ✔
+    [de/81e05c] PRE…:fastqc_cleanreads (ind41) | 39 of 50
+    [-        ] PRE…_MODERN:multiqc_cleanreads -
+    [-        ] PRE…HISTORICAL:fastqc_rawreads -
+    [-        ] PRE…ISTORICAL:multiqc_rawreads -
+    [-        ] PRE…_HISTORICAL:adapterremoval -
+    [-        ] PRE…SS_HISTORICAL:concat_reads -
+    [-        ] PRE…ISTORICAL:concat_collapsed -
+    [-        ] PRE…HISTORICAL:clumpify_paired -
+    [-        ] PRE…HISTORICAL:clumpify_single -
+    [-        ] PRE…STORICAL:fastqc_cleanreads -
+    [-        ] PRE…TORICAL:multiqc_cleanreads -
+    [09/cb930c] MAP_MODERN:bwa_mem (ind7)      | 26 of 50
+
+Here you can follow the progress of the pipeline: Some of the processes only run once and are already finished, for example:
+
+    [34/520f07] IND…x (reference_genome.fa.gz) | 1 of 1, cached: 1 ✔
+
+The text is unfortunately truncated here, but this process is the indexing of the reference genome – which only has to be done once, prior to mapping, and for this relatively small simulated genome it's rather quick so in this case it's already finished. 
+
+Other processes run once per sample, e.g.,:
+
+    [e3/785caf] PRE…OCESS_MODERN:fastp (ind35) | 50 of 50 ✔
+
+This is the trimming/cleaning of the read files with the program fastp, and the 50 of 50 means that this process was scheduled to run 50 times, once for each sample in our sample sheet. The check mark at the end indicates that this process is already finished for all samples. 
+
+As the pipeline progresses, you may see other numbers here too, as some processes will parallelize across genomic regions etc., so the scheduled number of times they run may vary.
+
+As nextflow executes the pipeline, it will write all the intermeditate files that each of the processes create into a dedicated directory. This is called the workdir, and by default it will be located in the folder where we execute the pipeline from. So if you do:
+
+
+    ls -1
+
+You should now see that a directory named "work" has been created. 
+
+This folder can become very large when the pipeline is applied to real datasets, which can potentially cause problems if there's limited storage space on the project directory where the pipeline is run. If there is a temporary/scratch storage system available on the cluster where you're running the pipeline, it may therefore be a good idea to tell nextflow to use the temporary storage for this directory. Note that the tempstorage need to be accessible to across compute nodes, so we cannot use node-specific scratch storage which is the only thing available on some slurm clusters (Uppmax, for example). On dardel, however, we can accomplish this by adding the following flag to the pipeline execution inside the slurm script:
+
+
+    -work-dir $PDC_TMP/map_and_call_workdir
+
+
