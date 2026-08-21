@@ -5,3 +5,10 @@ logs
 .envs
 
 data
+data_backup
+data.tar.gz
+sample_sheet_tutorial.csv
+work
+run_on_dardel_tutorial.sh
+data.tar
+._data
