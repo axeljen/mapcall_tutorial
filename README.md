@@ -13,7 +13,7 @@ First off, clone this repo and download the data:
     cd /path/to/folder # change this path to someplace where you want to store and run the tutorial, for example a dedicated directory in your project folder.
     
     # clone the tutorial repository, and enter it
-    git clone /address/to/repo
+    git clone https://github.com/axeljen/mapcall_tutorial
     cd map_and_call_tutorial
 ```
 
