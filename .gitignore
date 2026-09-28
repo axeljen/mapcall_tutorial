@@ -12,3 +12,5 @@ work
 run_on_dardel_tutorial.sh
 data.tar
 ._data
+example_output
+readlinks
