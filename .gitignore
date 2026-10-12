@@ -14,3 +14,5 @@ data.tar
 ._data
 example_output
 readlinks
+output*
+output_tutorial_dsbams
