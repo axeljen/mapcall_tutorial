@@ -26,7 +26,7 @@ The data we'll use in this tutorial is a small simulated set of a reference geno
 ```bash
 
     # download the archived data folder
-    curl -L https://osf.io/download/fn2gc/ -o data.tar
+    curl -L https://osf.io/download/fcsd8/ -o data.tar
 
     # and extract the data
     tar -xf data.tar
